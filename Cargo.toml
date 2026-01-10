@@ -9,5 +9,9 @@ resolver = "2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 anyhow = "1.0"
+thiserror = "1.0"
+dirs = "5.0"
+indexmap = { version = "2.2", features = ["serde"] }
+tempfile = "3.10"
 
 envhub-core = { path = "./crates/envhub-core" }
