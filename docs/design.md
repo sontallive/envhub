@@ -139,6 +139,43 @@ graph TD
 
 ```
 
+### 4.1.1 `state.json` 格式规范 (Schema Notes)
+
+* **文件位置**: `~/.config/envhub/state.json` (Windows: `%APPDATA%\EnvHub\state.json`)
+* **读写原则**:
+  * `envhub-core` 负责创建/读取/写回，`envhub-launcher` 仅只读。
+  * 写回时应保留未知字段（未来扩展），避免破坏兼容性。
+* **字段定义**:
+  * `apps`: 以 App Name 为 key 的对象。
+  * 每个 App:
+    * `target_binary` (string): 原始命令名或绝对路径。
+    * `active_profile` (string): 当前生效的 Profile 名称。
+    * `profiles` (object): Profile 名称到环境变量表的映射。
+  * Profile 环境变量表:
+    * key 为环境变量名（`A-Z0-9_` 建议），value 为字符串。
+
+**最小合法示例:**
+
+```json
+{
+  "apps": {
+    "myapp": {
+      "target_binary": "myapp-real",
+      "active_profile": "default",
+      "profiles": {
+        "default": {}
+      }
+    }
+  }
+}
+```
+
+**错误处理约定:**
+
+* `apps` 缺失或为空：`envhub-launcher` 直接透传调用 `target_binary` 的同名程序（如果存在），否则报错。
+* `active_profile` 不存在：回退到第一个 profile（按插入顺序）或空环境。
+* 解析失败：`envhub-launcher` 报错并退出非 0，`envhub-core` 提示用户修复。
+
 ### 4.2 启动器逻辑 (The Launcher Logic)
 
 `envhub-launcher` 必须极快且透明。
@@ -156,6 +193,58 @@ graph TD
 5. **Process Replacement**:
 * **Linux/macOS**: 使用 `syscall.Exec`。这会用目标进程完全替换当前进程。PID 不变，信号（Ctrl+C）自动由新进程接收，内存消耗极低。
 * **Windows**: 使用 `Command::new` 启动子进程，并接管 Stdin/Stdout/Stderr。
+
+### 4.2.1 `envhub-launcher` 详细设计
+
+**目标**：极小体积、极低延迟、无外部依赖、行为可预测。
+
+**核心职责**:
+
+1. 解析自身调用名（`argv[0]`，如 `claudes`）。
+2. 读取 `state.json` 并定位对应 App 配置。
+3. 解析目标二进制并规避自我指向（防环）。
+4. 合并环境变量并执行替换/子进程。
+
+**关键行为细节**:
+
+* **自我识别**: Windows 下需去掉 `.exe` 后缀作为 App 名。
+* **防环查找**:
+  * 遍历 PATH 中的可执行候选。
+  * 排除与 `envhub-launcher` 同 inode（或同路径）者。
+  * 若 `target_binary` 为绝对路径则直接使用。
+* **环境合并策略**:
+  * 以当前 `os::environ` 为 base。
+  * Profile 环境覆盖同名变量。
+  * 不删除 base 中不存在的变量，保持进程环境最小扰动。
+* **Exit Code 传递**: Windows 子进程退出码原样返回。
+
+### 4.2.2 `envhub-core` 详细设计
+
+**定位**：被 GUI/TUI/未来 CLI 复用的核心库。
+
+**模块划分**:
+
+1. **state**:
+   * `load_state()` / `save_state()`：JSON 读写与版本兼容。
+   * `validate_state()`：格式校验、缺字段修复（如自动补空 `profiles`）。
+2. **apps**:
+   * `register_app(name, target)`：写入 `state.json` 并触发安装。
+   * `set_active_profile(name, profile)`：切换激活 Profile。
+   * `list_apps()` / `list_profiles(name)`：供 UI 展示。
+3. **install**:
+   * `install_launcher(mode)`：全局/用户模式安装。
+   * `install_shim(name)`：为指定 App 创建链接/复制。
+   * `detect_platform()`：统一 OS/路径判断。
+
+**错误处理约定**:
+
+* 所有对外 API 返回可直接面向 UI 的错误信息（结构化 error code + message）。
+* 安装阶段区分权限错误与路径错误，前者提示提权，后者提示修复 PATH。
+
+**依赖边界**:
+
+* 不依赖 GUI/TUI，保证 `envhub-core` 可在 CLI 环境独立运行。
+* 仅依赖稳定 Rust 库（serde/dirs/which/thiserror 等）。
 
 
 
