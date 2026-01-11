@@ -47,10 +47,7 @@ fn run() -> Result<ExitCode, CoreError> {
             .stderr(std::process::Stdio::inherit())
             .status()
             .map_err(|err| {
-                CoreError::new(
-                    ErrorCode::Io,
-                    format!("Failed to launch target: {err}"),
-                )
+                CoreError::new(ErrorCode::Io, format!("Failed to launch target: {err}"))
             })?;
         let code = status.code().unwrap_or(1) as u8;
         return Ok(ExitCode::from(code));
@@ -59,10 +56,7 @@ fn run() -> Result<ExitCode, CoreError> {
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
-        let err = Command::new(&resolved)
-            .args(args)
-            .envs(env.drain())
-            .exec();
+        let err = Command::new(&resolved).args(args).envs(env.drain()).exec();
         Err(CoreError::new(
             ErrorCode::Io,
             format!("Failed to exec target: {err}"),
@@ -135,13 +129,12 @@ fn resolve_target_binary(target: &str) -> Result<PathBuf, CoreError> {
         ));
     }
 
-    let resolved =
-        find_executable_in_path(target, &self_path).ok_or_else(|| {
-            CoreError::new(
-                ErrorCode::TargetNotFound,
-                format!("Target \"{target}\" not found in PATH"),
-            )
-        })?;
+    let resolved = find_executable_in_path(target, &self_path).ok_or_else(|| {
+        CoreError::new(
+            ErrorCode::TargetNotFound,
+            format!("Target \"{target}\" not found in PATH"),
+        )
+    })?;
     Ok(resolved)
 }
 
@@ -149,7 +142,12 @@ fn find_executable_in_path(target: &str, self_path: &Path) -> Option<PathBuf> {
     let path_var = std::env::var_os("PATH")?;
     let path_exts = if cfg!(windows) {
         std::env::var_os("PATHEXT")
-            .map(|exts| exts.to_string_lossy().split(';').map(|s| s.to_string()).collect())
+            .map(|exts| {
+                exts.to_string_lossy()
+                    .split(';')
+                    .map(|s| s.to_string())
+                    .collect()
+            })
             .unwrap_or_else(|| vec![".EXE".to_string()])
     } else {
         Vec::new()
@@ -248,7 +246,10 @@ mod tests {
         let mut overrides = HashMap::new();
         overrides.insert("KEY".to_string(), "NEW".to_string());
         let merged = merge_env(base, &overrides);
-        assert_eq!(merged.get(OsStr::new("KEY")), Some(&OsString::from("NEW")));
+        assert_eq!(
+            merged.get(std::ffi::OsStr::new("KEY")),
+            Some(&OsString::from("NEW"))
+        );
     }
 
     #[test]
