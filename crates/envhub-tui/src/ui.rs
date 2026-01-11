@@ -300,10 +300,7 @@ fn render_profiles_list(frame: &mut Frame, area: Rect, app: &App) {
         .collect();
 
     let list = List::new(items)
-        .block(draw_block(
-            "Profiles (P:Add, Enter:Activate, Tab:Next)",
-            focus,
-        ))
+        .block(draw_block("Profiles", focus))
         .highlight_style(
             Style::default()
                 .bg(Color::DarkGray)
@@ -446,37 +443,78 @@ fn render_input_modal(frame: &mut Frame, area: Rect, app: &App) {
         .constraints([Constraint::Min(2), Constraint::Length(3)]) // Prompt+Input, Hints
         .split(inner_area);
 
-    let prompt = match (app.input.mode, app.input.step) {
-        (InputMode::AddApp, InputStep::First) => "Enter application name:",
-        (InputMode::AddApp, InputStep::Second) => "Enter target binary path:",
-        (InputMode::AddProfile, InputStep::First) => "Enter new profile name:",
-        (InputMode::AddProfile, InputStep::Second) => "Copy from? (Enter empty for None)",
-        (InputMode::SetEnv, InputStep::First) => "Enter variable KEY:",
-        (InputMode::SetEnv, InputStep::Second) => "Enter variable VALUE:",
-        _ => "",
-    };
+    match (app.input.mode, app.input.step) {
+        (InputMode::AddProfile, InputStep::Second) => {
+            // Render selection list
+            let mut items = vec![ListItem::new(Span::raw("(None) - Empty Profile"))];
+            let profiles = app.current_profiles();
+            for p in profiles {
+                items.push(ListItem::new(Span::raw(p)));
+            }
 
-    let input_text = vec![
-        Line::from(Span::styled(prompt, Style::default().fg(THEME.text_dim))),
-        Line::from(vec![
-            Span::raw(" > "),
-            Span::styled(
-                &app.input.buf,
-                Style::default().fg(THEME.text).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                "_",
-                Style::default()
-                    .fg(THEME.accent)
-                    .add_modifier(Modifier::SLOW_BLINK),
-            ), // Cursor
-        ]),
-    ];
+            let list = List::new(items)
+                .highlight_style(
+                    Style::default()
+                        .bg(Color::DarkGray)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .highlight_symbol(">> ");
 
-    frame.render_widget(
-        Paragraph::new(input_text).wrap(Wrap { trim: false }),
-        layout[0],
-    );
+            let mut state = ListState::default();
+            state.select(Some(app.input.selection_index));
+
+            frame.render_widget(
+                Paragraph::new("Select profile to copy from:")
+                    .style(Style::default().fg(THEME.text_dim)),
+                layout[0],
+            );
+
+            // We need a sub-layout for the list because the prompt takes space
+            let list_area = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Length(1), Constraint::Min(0)])
+                .split(layout[0]);
+
+            frame.render_widget(
+                Paragraph::new("Select profile to copy from:")
+                    .style(Style::default().fg(THEME.text_dim)),
+                list_area[0],
+            );
+            frame.render_stateful_widget(list, list_area[1], &mut state);
+        }
+        _ => {
+            let prompt = match (app.input.mode, app.input.step) {
+                (InputMode::AddApp, InputStep::First) => "Enter application name:",
+                (InputMode::AddApp, InputStep::Second) => "Enter target binary path:",
+                (InputMode::AddProfile, InputStep::First) => "Enter new profile name:",
+                (InputMode::SetEnv, InputStep::First) => "Enter variable KEY:",
+                (InputMode::SetEnv, InputStep::Second) => "Enter variable VALUE:",
+                _ => "",
+            };
+
+            let input_text = vec![
+                Line::from(Span::styled(prompt, Style::default().fg(THEME.text_dim))),
+                Line::from(vec![
+                    Span::raw(" > "),
+                    Span::styled(
+                        &app.input.buf,
+                        Style::default().fg(THEME.text).add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(
+                        "_",
+                        Style::default()
+                            .fg(THEME.accent)
+                            .add_modifier(Modifier::SLOW_BLINK),
+                    ), // Cursor
+                ]),
+            ];
+
+            frame.render_widget(
+                Paragraph::new(input_text).wrap(Wrap { trim: false }),
+                layout[0],
+            );
+        }
+    }
 
     let hints = Line::from(vec![
         Span::styled("Enter", Style::default().fg(THEME.primary)),

@@ -36,6 +36,7 @@ pub struct InputState {
     pub buf: String,
     pub first: String,
     pub second: String,
+    pub selection_index: usize,
 }
 
 impl InputState {
@@ -46,6 +47,7 @@ impl InputState {
             buf: String::new(),
             first: String::new(),
             second: String::new(),
+            selection_index: 0,
         }
     }
 
@@ -55,6 +57,7 @@ impl InputState {
         self.buf.clear();
         self.first.clear();
         self.second.clear();
+        self.selection_index = 0;
     }
 }
 
@@ -280,6 +283,34 @@ impl App {
     }
 
     fn handle_input(&mut self, key: KeyEvent) -> io::Result<bool> {
+        // Special handling for Clone Profile Selection (Step 2 of AddProfile)
+        if self.input.mode == InputMode::AddProfile && self.input.step == InputStep::Second {
+            match key.code {
+                KeyCode::Esc => {
+                    self.input.reset();
+                    self.status = "Cancelled".to_string();
+                }
+                KeyCode::Up => {
+                    if self.input.selection_index > 0 {
+                        self.input.selection_index -= 1;
+                    }
+                }
+                KeyCode::Down => {
+                    // limit depends on how many profiles + 1 (None)
+                    // We need correct count.
+                    let count = self.current_profiles().len() + 1;
+                    if self.input.selection_index < count - 1 {
+                        self.input.selection_index += 1;
+                    }
+                }
+                KeyCode::Enter => {
+                    self.commit_input()?;
+                }
+                _ => {}
+            }
+            return Ok(false);
+        }
+
         match key.code {
             KeyCode::Esc => {
                 self.input.reset();
@@ -332,22 +363,38 @@ impl App {
                 self.input.reset();
             }
             (InputMode::AddProfile, InputStep::First) => {
-                // Step 2: Clone from?
+                // Step 2: Select Clone source
+                // Validate if profile exists
+                let new_profile = value.clone();
+                let profiles = self.current_profiles();
+                if profiles.contains(&new_profile) {
+                    self.status = format!("Profile '{}' already exists", new_profile);
+                    return Ok(());
+                }
+
                 self.input.first = value;
                 self.input.buf.clear();
                 self.input.step = InputStep::Second;
-                self.status = "Copy from profile? (Empty for clean)".to_string();
+                self.input.selection_index = 0;
+                self.status = "Select profile to copy from".to_string();
             }
             (InputMode::AddProfile, InputStep::Second) => {
                 let app = self.current_app_name();
                 let new_profile = self.input.first.clone();
-                let source_profile = value; // self.input.buf
+
+                // Determine selected source
+                let profiles = self.current_profiles();
+                // Index 0 is "None", Index 1..=len as profiles[i-1]
+                let source_profile = if self.input.selection_index == 0 {
+                    None
+                } else {
+                    profiles.get(self.input.selection_index - 1).cloned()
+                };
 
                 if let Some(app) = app {
-                    let res = if source_profile.is_empty() {
-                        envhub_core::add_profile(&app, &new_profile)
-                    } else {
-                        envhub_core::clone_profile(&app, &source_profile, &new_profile)
+                    let res = match source_profile {
+                        Some(src) => envhub_core::clone_profile(&app, &src, &new_profile),
+                        None => envhub_core::add_profile(&app, &new_profile),
                     };
 
                     match res {
