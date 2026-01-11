@@ -4,11 +4,12 @@ use ratatui::{
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{
-        Block, BorderType, Borders, Clear, List, ListItem, ListState, Paragraph, Row, Table, Wrap,
+        Block, BorderType, Borders, Clear, HighlightSpacing, List, ListItem, ListState, Paragraph,
+        Row, Table, Wrap,
     },
 };
 
-use crate::app::{App, Focus, InputMode, InputStep};
+use crate::app::{App, Focus, InputMode, InputStep, Page};
 
 // Theme configuration
 struct Theme {
@@ -52,8 +53,8 @@ pub fn render(frame: &mut Frame, app: &App) {
         ])
         .split(area);
 
-    render_header(frame, chunks[0]);
-    render_content(frame, chunks[1], app);
+    render_header(frame, chunks[0], app);
+    render_content_for_page(frame, chunks[1], app);
     render_status_bar(frame, chunks[2], app);
 
     if app.input.mode != InputMode::Normal {
@@ -61,7 +62,22 @@ pub fn render(frame: &mut Frame, app: &App) {
     }
 }
 
-fn render_header(frame: &mut Frame, area: Rect) {
+fn render_content_for_page(frame: &mut Frame, area: Rect, app: &App) {
+    match app.page {
+        Page::AppsList => {
+            render_apps_list(frame, area, app);
+        }
+        Page::AppDetail => {
+            let chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
+                .split(area);
+            render_profiles_list(frame, chunks[0], app);
+            render_env_details(frame, chunks[1], app);
+        }
+    }
+}
+fn render_header(frame: &mut Frame, area: Rect, app: &App) {
     let block = Block::default()
         .borders(Borders::BOTTOM)
         .border_type(BorderType::Double)
@@ -82,29 +98,101 @@ fn render_header(frame: &mut Frame, area: Rect) {
         ),
     ];
 
-    let instructions = Line::from(vec![
-        Span::styled(
-            "Q",
-            Style::default()
-                .fg(THEME.accent)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::raw("uit | "),
-        Span::styled(
-            "R",
-            Style::default()
-                .fg(THEME.accent)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::raw("eload | "),
-        Span::styled(
-            "Tab",
-            Style::default()
-                .fg(THEME.accent)
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::raw(" Switch Focus"),
-    ]);
+    let instructions = match app.page {
+        Page::AppsList => Line::from(vec![
+            Span::styled(
+                "Q",
+                Style::default()
+                    .fg(THEME.accent)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("uit | "),
+            Span::styled(
+                "A",
+                Style::default()
+                    .fg(THEME.accent)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("dd App | "),
+            Span::styled(
+                "Enter",
+                Style::default()
+                    .fg(THEME.accent)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" Select"),
+        ]),
+        Page::AppDetail => match app.focus {
+            Focus::Profiles => Line::from(vec![
+                Span::styled(
+                    "Esc",
+                    Style::default()
+                        .fg(THEME.accent)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" Back | "),
+                Span::styled(
+                    "P",
+                    Style::default()
+                        .fg(THEME.accent)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" Add Prof | "),
+                Span::styled(
+                    "Enter",
+                    Style::default()
+                        .fg(THEME.accent)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" Activate | "),
+                Span::styled(
+                    "Tab",
+                    Style::default()
+                        .fg(THEME.accent)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" EnvVars"),
+            ]),
+            Focus::EnvVars => Line::from(vec![
+                Span::styled(
+                    "Esc",
+                    Style::default()
+                        .fg(THEME.accent)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" Back | "),
+                Span::styled(
+                    "A",
+                    Style::default()
+                        .fg(THEME.accent)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" Add Env | "),
+                Span::styled(
+                    "E",
+                    Style::default()
+                        .fg(THEME.accent)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" Edit | "),
+                Span::styled(
+                    "D",
+                    Style::default()
+                        .fg(THEME.accent)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" Del | "),
+                Span::styled(
+                    "Tab",
+                    Style::default()
+                        .fg(THEME.accent)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" Profiles"),
+            ]),
+            _ => Line::default(),
+        },
+    };
 
     frame.render_widget(block, area);
 
@@ -119,31 +207,6 @@ fn render_header(frame: &mut Frame, area: Rect) {
         Paragraph::new(instructions).alignment(Alignment::Right),
         inner_area,
     );
-}
-
-fn render_content(frame: &mut Frame, area: Rect, app: &App) {
-    // 3-Column Layout: Apps | Profiles | Env Vars
-    // Or 2-Column: Apps+Profiles | Env Vars?
-    // Let's stick to 2 major columns, but split the left one for Apps/Profiles list.
-    // Left: 30% width (Apps List top, Profiles List bottom? Or Side-by-Side?)
-    // The previous layout was Apps | Profiles.
-    // Let's try:
-    // Left Panel (40%): Apps List (top 50%), Profiles List (bottom 50%)
-    // Right Panel (60%): Environment Variables Table
-
-    let main_chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
-        .split(area);
-
-    let left_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(main_chunks[0]);
-
-    render_apps_list(frame, left_chunks[0], app);
-    render_profiles_list(frame, left_chunks[1], app);
-    render_env_details(frame, main_chunks[1], app);
 }
 
 fn draw_block(title: &str, is_focused: bool) -> Block<'_> {
@@ -199,7 +262,7 @@ fn render_apps_list(frame: &mut Frame, area: Rect, app: &App) {
         .collect();
 
     let list = List::new(items)
-        .block(draw_block("Applications (A:Add)", focus))
+        .block(draw_block("Applications", focus))
         .highlight_style(
             Style::default()
                 .bg(Color::DarkGray)
@@ -237,7 +300,10 @@ fn render_profiles_list(frame: &mut Frame, area: Rect, app: &App) {
         .collect();
 
     let list = List::new(items)
-        .block(draw_block("Profiles (P:Add, Enter:Activate)", focus))
+        .block(draw_block(
+            "Profiles (P:Add, Enter:Activate, Tab:Next)",
+            focus,
+        ))
         .highlight_style(
             Style::default()
                 .bg(Color::DarkGray)
@@ -251,11 +317,12 @@ fn render_profiles_list(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_env_details(frame: &mut Frame, area: Rect, app: &App) {
+    let focus = app.focus == Focus::EnvVars;
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(THEME.text_dim))
-        .title(" Environment Variables (E:Set) ");
+        .border_style(Style::default().fg(if focus { THEME.primary } else { THEME.text_dim }))
+        .title(" Env Vars ");
 
     let (rows, empty_msg) = get_env_rows(app);
 
@@ -267,6 +334,11 @@ fn render_env_details(frame: &mut Frame, area: Rect, app: &App) {
             .wrap(Wrap { trim: true });
         frame.render_widget(p, area);
     } else {
+        let mut table_state = ratatui::widgets::TableState::default();
+        if focus {
+            table_state.select(Some(app.selected_env_var));
+        }
+
         let table = Table::new(
             rows,
             [Constraint::Percentage(30), Constraint::Percentage(70)],
@@ -280,8 +352,16 @@ fn render_env_details(frame: &mut Frame, area: Rect, app: &App) {
             ),
         )
         .block(block)
-        .column_spacing(2);
-        frame.render_widget(table, area);
+        .column_spacing(2)
+        .highlight_style(
+            Style::default()
+                .bg(Color::DarkGray)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol(">> ")
+        .highlight_spacing(HighlightSpacing::Always);
+
+        frame.render_stateful_widget(table, area, &mut table_state);
     }
 }
 
@@ -369,7 +449,8 @@ fn render_input_modal(frame: &mut Frame, area: Rect, app: &App) {
     let prompt = match (app.input.mode, app.input.step) {
         (InputMode::AddApp, InputStep::First) => "Enter application name:",
         (InputMode::AddApp, InputStep::Second) => "Enter target binary path:",
-        (InputMode::AddProfile, _) => "Enter new profile name:",
+        (InputMode::AddProfile, InputStep::First) => "Enter new profile name:",
+        (InputMode::AddProfile, InputStep::Second) => "Copy from? (Enter empty for None)",
         (InputMode::SetEnv, InputStep::First) => "Enter variable KEY:",
         (InputMode::SetEnv, InputStep::Second) => "Enter variable VALUE:",
         _ => "",

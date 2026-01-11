@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::{load_state_from_path, save_state_to_path, CoreError, ErrorCode};
+use crate::{CoreError, ErrorCode, load_state_from_path, save_state_to_path};
 
 pub fn register_app(name: &str, target: &str) -> Result<(), CoreError> {
     let path = crate::default_state_path()?;
@@ -21,7 +21,8 @@ pub fn register_app_in(path: &Path, name: &str, target: &str) -> Result<(), Core
         app.active_profile = Some("default".to_string());
     }
     if app.profiles.is_empty() {
-        app.profiles.insert("default".to_string(), Default::default());
+        app.profiles
+            .insert("default".to_string(), Default::default());
     }
     app.installed = false;
     crate::validate_state(&mut state)?;
@@ -163,6 +164,55 @@ pub fn set_profile_env_in(
     save_state_to_path(path, &state)
 }
 
+pub fn clone_profile(name: &str, from_profile: &str, to_profile: &str) -> Result<(), CoreError> {
+    let path = crate::default_state_path()?;
+    clone_profile_in(&path, name, from_profile, to_profile)
+}
+
+pub fn clone_profile_in(
+    path: &Path,
+    name: &str,
+    from_profile: &str,
+    to_profile: &str,
+) -> Result<(), CoreError> {
+    if to_profile.trim().is_empty() {
+        return Err(CoreError::new(
+            ErrorCode::InvalidState,
+            "Target profile name must be non-empty".to_string(),
+        ));
+    }
+    let mut state = load_state_from_path(path)?;
+    let app = state.apps.get_mut(name).ok_or_else(|| {
+        CoreError::new(
+            ErrorCode::AppNotFound,
+            format!("App \"{name}\" is not registered"),
+        )
+    })?;
+
+    if !app.profiles.contains_key(from_profile) {
+        return Err(CoreError::new(
+            ErrorCode::ProfileNotFound,
+            format!("Source profile \"{from_profile}\" not found for app \"{name}\""),
+        ));
+    }
+
+    if app.profiles.contains_key(to_profile) {
+        return Err(CoreError::new(
+            ErrorCode::InvalidState,
+            format!("Target profile \"{to_profile}\" already exists"),
+        ));
+    }
+
+    let source_env = app.profiles.get(from_profile).unwrap().clone();
+    app.profiles.insert(to_profile.to_string(), source_env);
+
+    if app.active_profile.is_none() {
+        app.active_profile = Some(to_profile.to_string());
+    }
+
+    save_state_to_path(path, &state)
+}
+
 pub fn remove_profile_env(name: &str, profile: &str, key: &str) -> Result<(), CoreError> {
     let path = crate::default_state_path()?;
     remove_profile_env_in(&path, name, profile, key)
@@ -258,6 +308,11 @@ mod tests {
         remove_profile_env_in(&path, "tool", "default", "KEY").expect("remove");
         let state = load_state_from_path(&path).expect("load");
         let app = state.apps.get("tool").expect("app");
-        assert!(app.profiles.get("default").and_then(|env| env.get("KEY")).is_none());
+        assert!(
+            app.profiles
+                .get("default")
+                .and_then(|env| env.get("KEY"))
+                .is_none()
+        );
     }
 }
