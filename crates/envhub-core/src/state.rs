@@ -41,7 +41,7 @@ pub fn default_state_path() -> Result<PathBuf, CoreError> {
         )
     })?;
     let envhub_dir = if cfg!(windows) { "EnvHub" } else { "envhub" };
-    Ok(base.join(envhub_dir).join("state.json"))
+    Ok(base.join(envhub_dir).join("config.json"))
 }
 
 pub fn load_state() -> Result<State, CoreError> {
@@ -54,15 +54,12 @@ pub fn load_state_from_path(path: &Path) -> Result<State, CoreError> {
         return Ok(State::default());
     }
     let data = fs::read_to_string(path).map_err(|err| {
-        CoreError::new(
-            ErrorCode::Io,
-            format!("Failed to read state.json: {err}"),
-        )
+        CoreError::new(ErrorCode::Io, format!("Failed to read config.json: {err}"))
     })?;
     serde_json::from_str(&data).map_err(|err| {
         CoreError::new(
             ErrorCode::Json,
-            format!("Failed to parse state.json: {err}"),
+            format!("Failed to parse config.json: {err}"),
         )
     })
 }
@@ -77,22 +74,18 @@ pub fn save_state_to_path(path: &Path, state: &State) -> Result<(), CoreError> {
         fs::create_dir_all(parent).map_err(|err| {
             CoreError::new(
                 ErrorCode::Io,
-                format!("Failed to create state.json directory: {err}"),
+                format!("Failed to create config.json directory: {err}"),
             )
         })?;
     }
     let data = serde_json::to_vec_pretty(state).map_err(|err| {
         CoreError::new(
             ErrorCode::Json,
-            format!("Failed to serialize state.json: {err}"),
+            format!("Failed to serialize config.json: {err}"),
         )
     })?;
-    fs::write(path, data).map_err(|err| {
-        CoreError::new(
-            ErrorCode::Io,
-            format!("Failed to write state.json: {err}"),
-        )
-    })
+    fs::write(path, data)
+        .map_err(|err| CoreError::new(ErrorCode::Io, format!("Failed to write config.json: {err}")))
 }
 
 pub fn validate_state(state: &mut State) -> Result<(), CoreError> {
@@ -105,7 +98,8 @@ pub fn validate_state(state: &mut State) -> Result<(), CoreError> {
         }
 
         if app.profiles.is_empty() {
-            app.profiles.insert("default".to_string(), EnvProfile::new());
+            app.profiles
+                .insert("default".to_string(), EnvProfile::new());
         }
 
         let active = app.active_profile.clone();
