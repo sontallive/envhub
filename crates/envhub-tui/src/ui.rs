@@ -65,7 +65,7 @@ fn render_header(frame: &mut Frame, area: Rect) {
     let block = Block::default()
         .borders(Borders::BOTTOM)
         .border_type(BorderType::Double)
-        .border_style(Style::default().fg(THEME.primary));
+        .border_style(Style::default().fg(THEME.text_dim));
 
     let inner_area = block.inner(area);
 
