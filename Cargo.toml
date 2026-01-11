@@ -15,3 +15,10 @@ indexmap = { version = "2.2", features = ["serde"] }
 tempfile = "3.10"
 
 envhub-core = { path = "./crates/envhub-core" }
+
+[profile.release]
+strip = true
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
