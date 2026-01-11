@@ -1,6 +1,10 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use envhub_core::{State, load_state, set_active_profile};
+use envhub_core::{
+    InstallMode, State, get_launcher_path, install_shim, is_shim_installed, load_state,
+    set_active_profile,
+};
 use std::io;
+
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Focus {
@@ -66,6 +70,7 @@ pub struct AppEntry {
     pub name: String,
     pub active_profile: Option<String>,
     pub profiles: Vec<String>,
+    pub is_installed: bool,
 }
 
 #[derive(Debug)]
@@ -79,6 +84,8 @@ pub struct App {
     pub status: String,
     pub input: InputState,
     pub state: State,
+    pub is_launcher_installed: bool,
+    pub is_path_configured: bool,
 }
 
 impl App {
@@ -88,6 +95,26 @@ impl App {
         Ok(Self::from_state(&state))
     }
 
+    pub fn handle_install(&mut self) {
+        if let Some(app_name) = self.current_app_name() {
+            if let Some(launcher_path) = get_launcher_path() {
+                match install_shim(&app_name, InstallMode::User, &launcher_path) {
+                    Ok(_) => {
+                        self.status = format!("Installed shim for {}", app_name);
+                        // Update status
+                        if let Ok(state) = load_state() {
+                            self.update_from_state(state);
+                        }
+                    }
+                    Err(e) => {
+                        self.status = format!("Installation failed: {}", e);
+                    }
+                }
+            } else {
+                self.status = "Launcher not found!".to_string();
+            }
+        }
+    }
     pub fn from_state(state: &State) -> Self {
         let mut entries = Vec::new();
         // Sort keys for consistent order
@@ -103,6 +130,7 @@ impl App {
                     name: name.clone(),
                     active_profile: app.active_profile.clone(),
                     profiles,
+                    is_installed: is_shim_installed(name, InstallMode::User),
                 });
             }
         }
@@ -117,6 +145,8 @@ impl App {
             status: "Ready".to_string(),
             input: InputState::new(),
             state: state.clone(),
+            is_launcher_installed: envhub_core::is_launcher_installed(),
+            is_path_configured: envhub_core::is_user_path_configured(),
         };
         app.snap_to_active_profile();
         app
@@ -136,6 +166,7 @@ impl App {
                     name: name.clone(),
                     active_profile: app.active_profile.clone(),
                     profiles,
+                    is_installed: is_shim_installed(name, InstallMode::User),
                 });
             }
         }
@@ -189,6 +220,11 @@ impl App {
                     self.input.buf.clear();
                     let profile = self.current_profile_name().unwrap_or_default();
                     self.status = format!("Add env for {profile}: enter key");
+                }
+            }
+            KeyCode::Char('i') => {
+                if self.page == Page::AppsList {
+                    self.handle_install();
                 }
             }
             KeyCode::Char('p') => {

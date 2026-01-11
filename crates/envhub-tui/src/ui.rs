@@ -85,7 +85,7 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
 
     let inner_area = block.inner(area);
 
-    let title_text = vec![
+    let mut title_text = vec![
         Span::styled(
             " Env",
             Style::default()
@@ -97,6 +97,24 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
             Style::default().fg(THEME.text).add_modifier(Modifier::BOLD),
         ),
     ];
+
+    // Status Indicator
+    let (status_text, status_color) = if app.is_launcher_installed {
+        if app.is_path_configured {
+            (" [Installed]", THEME.success)
+        } else {
+            (" [Installed, check PATH]", THEME.accent)
+        }
+    } else {
+        (" [Missing Launcher]", THEME.error)
+    };
+
+    title_text.push(Span::styled(
+        status_text,
+        Style::default()
+            .fg(status_color)
+            .add_modifier(Modifier::BOLD),
+    ));
 
     let instructions = match app.page {
         Page::AppsList => Line::from(vec![
@@ -251,9 +269,17 @@ fn render_apps_list(frame: &mut Frame, area: Rect, app: &App) {
                 String::new()
             };
 
+            let is_installed = entry.is_installed;
+            let install_marker = if is_installed {
+                Span::styled(" [I]", Style::default().fg(THEME.success))
+            } else {
+                Span::styled(" [ ]", Style::default().fg(THEME.text_dim))
+            };
+
             let content = Line::from(vec![
                 Span::styled(marker, marker_style),
                 Span::raw(&entry.name),
+                install_marker,
                 Span::styled(subtext, Style::default().fg(THEME.text_dim)),
             ]);
 
@@ -262,7 +288,7 @@ fn render_apps_list(frame: &mut Frame, area: Rect, app: &App) {
         .collect();
 
     let list = List::new(items)
-        .block(draw_block("Applications", focus))
+        .block(draw_block("Applications (i: install)", focus))
         .highlight_style(
             Style::default()
                 .bg(Color::DarkGray)

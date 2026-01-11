@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::{default_state_path, load_state_from_path, CoreError, ErrorCode, State};
+use crate::{CoreError, ErrorCode, State, default_state_path, load_state_from_path};
 
 #[cfg(test)]
 use crate::AppConfig;
@@ -42,7 +42,7 @@ pub fn detect_platform(mode: InstallMode) -> Result<PlatformInfo, CoreError> {
                     "Failed to resolve home directory".to_string(),
                 )
             })?;
-            home.join(".local").join("bin")
+            home.join(".envhub").join("bin")
         }
     };
 
@@ -66,10 +66,7 @@ pub fn install_launcher(mode: InstallMode, launcher_path: &Path) -> Result<PathB
         } else {
             ErrorCode::InstallPath
         };
-        CoreError::new(
-            code,
-            format!("Failed to create install directory: {err}"),
-        )
+        CoreError::new(code, format!("Failed to create install directory: {err}"))
     })?;
 
     let launcher_name = if platform.is_windows {
@@ -101,7 +98,56 @@ pub fn install_launcher(mode: InstallMode, launcher_path: &Path) -> Result<PathB
     Ok(dest)
 }
 
-pub fn install_shim(name: &str, mode: InstallMode, launcher_path: &Path) -> Result<PathBuf, CoreError> {
+pub fn get_launcher_path() -> Option<PathBuf> {
+    which::which("envhub-launcher").ok()
+}
+
+pub fn is_shim_installed(name: &str, mode: InstallMode) -> bool {
+    // If name is empty, it's definitely not installed.
+    if name.trim().is_empty() {
+        return false;
+    }
+
+    let Ok(platform) = detect_platform(mode) else {
+        return false;
+    };
+
+    // Construct expected path
+    let shim_path = if cfg!(windows) {
+        platform.install_dir.join(format!("{name}.exe"))
+    } else {
+        platform.install_dir.join(name)
+    };
+
+    shim_path.exists()
+}
+
+pub fn is_launcher_installed() -> bool {
+    which::which("envhub-launcher").is_ok()
+}
+
+pub fn is_user_path_configured() -> bool {
+    let Ok(platform) = detect_platform(InstallMode::User) else {
+        return false;
+    };
+    let install_dir = platform.install_dir.to_string_lossy().to_string();
+
+    // Simple check: see if PATH contains the install dir string.
+    // This is not perfect (e.g. symlinks, edge cases), but good enough for a UI hint.
+    if let Ok(path_var) = std::env::var("PATH") {
+        // Handle standard PATH separators (: on Unix, ; on Windows)
+        // We can just iterate the split results
+        let separator = if cfg!(windows) { ';' } else { ':' };
+        return path_var.split(separator).any(|p| p == install_dir);
+    }
+    false
+}
+
+pub fn install_shim(
+    name: &str,
+    mode: InstallMode,
+    launcher_path: &Path,
+) -> Result<PathBuf, CoreError> {
     let platform = detect_platform(mode)?;
     install_shim_in(name, &platform.install_dir, launcher_path)
 }
@@ -129,10 +175,7 @@ pub fn install_shim_in(
         } else {
             ErrorCode::InstallPath
         };
-        CoreError::new(
-            code,
-            format!("Failed to create install directory: {err}"),
-        )
+        CoreError::new(code, format!("Failed to create install directory: {err}"))
     })?;
 
     if cfg!(windows) {
@@ -233,5 +276,11 @@ mod tests {
         let shim_path =
             install_shim_for_state(&state, "tool", InstallMode::User, &launcher).expect("shim");
         assert!(shim_path.exists());
+    }
+
+    #[test]
+    fn test_is_launcher_installed_smoke() {
+        // Should not panic
+        let _result = is_launcher_installed();
     }
 }
