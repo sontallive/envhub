@@ -52,10 +52,10 @@ curl -fsSL https://raw.githubusercontent.com/sontallive/envhub/main/install.sh |
     Once an app is managed by EnvHub, use the alias you created:
     ```bash
     # If you created an alias 'iclaude' for 'claude':
-    iclaude code  # Uses EnvHub's environment variables
+    iclaude /status  # Uses EnvHub's environment variables
 
     # The original command still works without EnvHub:
-    claude code   # Uses default environment
+    claude /status   # Uses default environment
     ```
 
 ## 💡 Use Cases
