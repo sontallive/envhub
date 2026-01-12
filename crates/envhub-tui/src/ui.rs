@@ -438,12 +438,12 @@ fn render_status_bar(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_input_modal(frame: &mut Frame, area: Rect, app: &App) {
-    let modal_area = centered_rect(60, 25, area);
+    let modal_area = centered_rect(70, 35, area);
 
     frame.render_widget(Clear, modal_area); // Clear background
 
     let title = match app.input.mode {
-        InputMode::AddApp => " Add Application ",
+        InputMode::AddApp => " Add Command Alias (App) ",
         InputMode::AddProfile => " Add Profile ",
         InputMode::SetEnv => " Set Environment Variable ",
         InputMode::Normal => "",
@@ -466,7 +466,10 @@ fn render_input_modal(frame: &mut Frame, area: Rect, app: &App) {
     // Layout inside modal
     let layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(2), Constraint::Length(3)]) // Prompt+Input, Hints
+        .constraints([
+            Constraint::Min(4),     // Prompt+Input (ensure enough space for wrapped text)
+            Constraint::Length(2),  // Hints
+        ])
         .split(inner_area);
 
     match (app.input.mode, app.input.step) {
@@ -509,34 +512,52 @@ fn render_input_modal(frame: &mut Frame, area: Rect, app: &App) {
             frame.render_stateful_widget(list, list_area[1], &mut state);
         }
         _ => {
-            let prompt = match (app.input.mode, app.input.step) {
-                (InputMode::AddApp, InputStep::First) => "Enter application name:",
-                (InputMode::AddApp, InputStep::Second) => "Enter target binary path:",
-                (InputMode::AddProfile, InputStep::First) => "Enter new profile name:",
-                (InputMode::SetEnv, InputStep::First) => "Enter variable KEY:",
-                (InputMode::SetEnv, InputStep::Second) => "Enter variable VALUE:",
-                _ => "",
+            let (prompt, hint) = match (app.input.mode, app.input.step) {
+                (InputMode::AddApp, InputStep::First) => (
+                    "Alias name (e.g., 'iclaude', 'inode'):",
+                    Some("Tip: Use a different name from the original command"),
+                ),
+                (InputMode::AddApp, InputStep::Second) => (
+                    "Full path to original binary (use 'which <cmd>'):",
+                    None,
+                ),
+                (InputMode::AddProfile, InputStep::First) => ("New profile name:", None),
+                (InputMode::SetEnv, InputStep::First) => ("Variable KEY:", None),
+                (InputMode::SetEnv, InputStep::Second) => ("Variable VALUE:", None),
+                _ => ("", None),
             };
 
-            let input_text = vec![
-                Line::from(Span::styled(prompt, Style::default().fg(THEME.text_dim))),
-                Line::from(vec![
-                    Span::raw(" > "),
-                    Span::styled(
-                        &app.input.buf,
-                        Style::default().fg(THEME.text).add_modifier(Modifier::BOLD),
-                    ),
-                    Span::styled(
-                        "_",
-                        Style::default()
-                            .fg(THEME.accent)
-                            .add_modifier(Modifier::SLOW_BLINK),
-                    ), // Cursor
-                ]),
-            ];
+            let mut lines = Vec::new();
+
+            // Add hint if present
+            if let Some(hint_text) = hint {
+                lines.push(Line::from(Span::styled(
+                    hint_text,
+                    Style::default().fg(THEME.accent).add_modifier(Modifier::ITALIC),
+                )));
+                lines.push(Line::from(""));  // Empty line for spacing
+            }
+
+            // Add prompt
+            lines.push(Line::from(Span::styled(prompt, Style::default().fg(THEME.text_dim))));
+
+            // Add input line
+            lines.push(Line::from(vec![
+                Span::raw(" > "),
+                Span::styled(
+                    &app.input.buf,
+                    Style::default().fg(THEME.text).add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    "_",
+                    Style::default()
+                        .fg(THEME.accent)
+                        .add_modifier(Modifier::SLOW_BLINK),
+                ), // Cursor
+            ]));
 
             frame.render_widget(
-                Paragraph::new(input_text).wrap(Wrap { trim: false }),
+                Paragraph::new(lines).wrap(Wrap { trim: false }),
                 layout[0],
             );
         }

@@ -33,16 +33,29 @@ curl -fsSL https://raw.githubusercontent.com/sontallive/envhub/main/install.sh |
     Type `envhub` in your terminal to open the TUI.
 
 2.  **Add an App**:
-    Press `A` to register a new application (e.g., `node`, `python`, or `aws`).
+    Press `A` to register a new application. **Important**: The app name you enter acts as an **alias** (a new command name) that EnvHub will manage.
+
+    > **Best Practice**: Use a **different name** from the original command to keep both versions available. For example:
+    > - Original command: `claude` → EnvHub alias: `iclaude` or `claudex`
+    > - Original command: `node` → EnvHub alias: `inode` or `nodex`
+    >
+    > This way, you can use `claude` for the original command and `iclaude` when you need EnvHub's environment management.
+
+    > **How it works**: When you add an alias called `iclaude`, EnvHub creates a shim executable with that name. When you run `iclaude` in your terminal, EnvHub's wrapper will execute, inject the environment variables from your active profile, and then call the original `claude` binary.
+
+    > **Critical**: When prompted for the "target binary", you **must** provide the full path to the original command (use `which claude` to find it, e.g., `/usr/local/bin/claude`).
 
 3.  **Define Profiles**:
     Create profiles like `dev` or `prod` and add your environment variables.
 
-4.  **Use it Transparently**:
-    Once an app is managed by EnvHub, just run your command normally:
+4.  **Use Your Alias**:
+    Once an app is managed by EnvHub, use the alias you created:
     ```bash
-    # It will automatically use the active profile selected in EnvHub
-    node app.js
+    # If you created an alias 'iclaude' for 'claude':
+    iclaude code  # Uses EnvHub's environment variables
+
+    # The original command still works without EnvHub:
+    claude code   # Uses default environment
     ```
 
 ## 💡 Use Cases
@@ -50,7 +63,9 @@ curl -fsSL https://raw.githubusercontent.com/sontallive/envhub/main/install.sh |
 ### 1. Claude Code (Multi-Provider & Performance)
 Claude Code is a powerful agentic CLI tool. With EnvHub, you can easily switch between the official Anthropic API, third-party providers (like Z.AI), or self-hosted relays (like CRS), without manually editing configuration files.
 
-*   **App**: `claude`
+*   **Alias**: `iclaude` *(or `claudex`, `myclaude` - choose any name you like)*
+*   **Target Binary**: `/usr/local/bin/claude` *(use `which claude` to find your path)*
+*   **Usage**: Run `iclaude code` to use EnvHub-managed profiles, `claude code` for original behavior
 *   **Profiles**:
     *   **`official`**:
         *   `ANTHROPIC_AUTH_TOKEN`: `sk-ant-xxx`
@@ -83,6 +98,23 @@ EnvHub consists of three main components:
 -   **`envhub-core`**: The logic engine that manages state and configuration.
 -   **`envhub-tui`**: The interactive interface for managing your apps and variables.
 -   **`envhub-launcher`**: A high-performance shim that intercepts command calls and injects the correct environment variables.
+
+### How the Alias/Shim System Works
+
+1.  **App Registration**: When you add an app in EnvHub, you provide two things:
+    - **Alias name**: A new command name (e.g., `iclaude`, `inode`) that you'll use to invoke the managed version
+    - **Target binary**: The full path to the original executable (e.g., `/usr/local/bin/claude`)
+2.  **Shim Creation**: EnvHub creates a lightweight binary shim with the alias name in its managed directory.
+3.  **Dual Access**: After installation:
+    - Running your **alias** (e.g., `iclaude`) → uses EnvHub with environment variable injection
+    - Running the **original command** (e.g., `claude`) → works normally without EnvHub
+4.  **Interception & Injection**: When you run the alias, the shim reads your active profile from EnvHub's config, injects the environment variables, and then executes the **target binary** you specified.
+5.  **Zero Overhead**: The launcher is written in Rust and adds less than 1ms of latency, making it imperceptible in daily use.
+
+**Key Points**:
+- **Recommended**: Use a different alias name (e.g., `iclaude` instead of `claude`) to keep both managed and unmanaged versions available.
+- The target binary **must be a full path** to avoid resolution issues. Use `which <command>` to find the original binary's location before registering.
+- You choose the alias name—it can be anything you like (e.g., `myclaude`, `claudex`, `inode`, `mynode`).
 
 ## 🛠️ Development
 

@@ -213,7 +213,7 @@ impl App {
                     self.input.mode = InputMode::AddApp;
                     self.input.step = InputStep::First;
                     self.input.buf.clear();
-                    self.status = "Add app: enter name".to_string();
+                    self.status = "Add app: enter alias name (use different from original, e.g., iclaude, inode)".to_string();
                 } else if self.page == Page::AppDetail && self.focus == Focus::EnvVars {
                     self.input.mode = InputMode::SetEnv;
                     self.input.step = InputStep::First;
@@ -384,7 +384,7 @@ impl App {
                 self.input.first = value;
                 self.input.buf.clear();
                 self.input.step = InputStep::Second;
-                self.status = "Add app: enter target binary".to_string();
+                self.status = "Add app: enter full path to original binary (use 'which <cmd>')".to_string();
             }
             (InputMode::AddApp, InputStep::Second) => {
                 self.input.second = value;
