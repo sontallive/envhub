@@ -185,7 +185,7 @@ impl App {
         if self.selected_env_var >= env_len {
             self.selected_env_var = env_len.saturating_sub(1);
         }
-        self.snap_to_active_profile();
+        // Don't snap to active profile here - preserve user's current selection
     }
 
     pub fn handle_key(&mut self, key: KeyEvent) -> io::Result<bool> {
@@ -371,7 +371,10 @@ impl App {
 
     fn commit_input(&mut self) -> io::Result<()> {
         let value = self.input.buf.trim().to_string();
-        if value.is_empty() {
+
+        // Skip empty check for AddProfile Step 2 (selection-based, not text-based)
+        if value.is_empty()
+            && !(self.input.mode == InputMode::AddProfile && self.input.step == InputStep::Second) {
             self.status = "Input cannot be empty".to_string();
             return Ok(());
         }
