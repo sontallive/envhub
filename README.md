@@ -41,6 +41,37 @@ curl -fsSL https://raw.githubusercontent.com/sontallive/envhub/main/install.sh |
     node app.js
     ```
 
+## 💡 Use Cases
+
+### 1. Claude Code (Multi-Provider & Performance)
+Claude Code is a powerful agentic CLI tool. With EnvHub, you can easily switch between the official Anthropic API, third-party providers (like Z.AI), or self-hosted relays (like CRS), without manually editing configuration files.
+
+*   **App**: `claude`
+*   **Profiles**:
+    *   **`official`**:
+        *   `ANTHROPIC_AUTH_TOKEN`: `sk-ant-xxx`
+    *   **`zai-glm`** (High cost-performance):
+        *   `ANTHROPIC_AUTH_TOKEN`: `your_zai_api_key`
+        *   `ANTHROPIC_BASE_URL`: `https://api.z.ai/api/anthropic`
+        *   `ANTHROPIC_DEFAULT_SONNET_MODEL`: `glm-4.7`
+        *   `ANTHROPIC_DEFAULT_HAIKU_MODEL_`: `glm-4.5-air`
+        *   `ANTHROPIC_DEFAULT_OPUS_MODEL`: `glm-4.7`
+    *   **`crs-relay`** (Self-hosted / Shared):
+        *   `ANTHROPIC_AUTH_TOKEN`: `your_crs_key`
+        *   `ANTHROPIC_BASE_URL`: `http://your-relay-server:3000/api/`
+
+### 2. AWS Account & Region Switching
+Avoid manually exporting `AWS_PROFILE` or keys. Define profiles for different accounts or environments.
+
+*   **App**: `aws`
+*   **Profiles**: `work-dev`, `work-prod`, `personal-oss`.
+
+### 3. Database Migration & Access
+Ensure your migration scripts or CLI clients always hit the right database.
+
+*   **App**: `psql`, `prisma`, `supabase`
+*   **Profiles**: `local`, `staging`, `production`.
+
 ## 🏗️ Architecture
 
 EnvHub consists of three main components:
