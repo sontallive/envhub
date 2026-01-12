@@ -25,9 +25,6 @@ jobs:
           - os: macos-latest
             target: aarch64-apple-darwin
             bin: envhub-tui,envhub-launcher
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            bin: envhub-tui.exe,envhub-launcher.exe
 
     steps:
       - name: Checkout
@@ -45,11 +42,7 @@ jobs:
         shell: bash
         run: |
           cd target/${{ matrix.platform.target }}/release
-          if [ "${{ runner.os }}" == "Windows" ]; then
-            tar -czf ../../../envhub-${{ matrix.platform.target }}.tar.gz envhub-tui.exe envhub-launcher.exe
-          else
-            tar -czf ../../../envhub-${{ matrix.platform.target }}.tar.gz envhub-tui envhub-launcher
-          fi
+          tar -czf ../../../envhub-${{ matrix.platform.target }}.tar.gz envhub-tui envhub-launcher
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4

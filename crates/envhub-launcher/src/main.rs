@@ -18,27 +18,28 @@ fn main() -> ExitCode {
 }
 
 fn run() -> Result<ExitCode, CoreError> {
-    // Check for version/help flags first
-    let args: Vec<String> = std::env::args().collect();
-    if args.len() > 1 {
-        match args[1].as_str() {
-            "--version" | "-v" => {
-                println!("envhub-launcher {}", VERSION);
-                return Ok(ExitCode::SUCCESS);
-            }
-            "--help" | "-h" => {
-                print_help();
-                return Ok(ExitCode::SUCCESS);
-            }
-            _ => {}
-        }
-    }
-
     let app_name = app_name_from_argv0()
         .ok_or_else(|| CoreError::new(ErrorCode::InvalidState, "Missing argv[0]".to_string()))?;
 
-    // Prevent direct execution of envhub-launcher
+    // Only handle --version/--help when directly running envhub-launcher
+    // For aliases (e.g., claudex), pass all args through to the target binary
     if app_name == "envhub-launcher" {
+        let args: Vec<String> = std::env::args().collect();
+        if args.len() > 1 {
+            match args[1].as_str() {
+                "--version" | "-v" => {
+                    println!("envhub-launcher {}", VERSION);
+                    return Ok(ExitCode::SUCCESS);
+                }
+                "--help" | "-h" => {
+                    print_help();
+                    return Ok(ExitCode::SUCCESS);
+                }
+                _ => {}
+            }
+        }
+
+        // Prevent direct execution of envhub-launcher without flags
         eprintln!("Error: envhub-launcher should not be run directly.");
         eprintln!("This binary is meant to be symlinked/copied with your app name.");
         eprintln!();

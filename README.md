@@ -15,7 +15,7 @@
 - 🔄 **Profile Switching**: Instantly switch environment profiles (Dev/Prod/Staging) for any application.
 - 🚀 **Zero Overhead**: The launcher is written in Rust for minimal latency and extreme performance.
 - 🛠️ **Automatic Shims**: Automatically manages binary wrappers so you don't have to change your workflow.
-- 📦 **Cross Platform**: Works on macOS, Linux, and Windows.
+- 📦 **Cross Platform**: Works on macOS (Intel & Apple Silicon) and Linux.
 
 ## 🚀 Installation
 
@@ -25,7 +25,7 @@ The easiest way to install EnvHub is via the one-line installer:
 curl -fsSL https://raw.githubusercontent.com/sontallive/envhub/main/install.sh | sh
 ```
 
-*For Windows users, please download the latest executable from the [Releases](https://github.com/sontallive/envhub/releases) page.*
+**Supported Platforms**: macOS (Intel & Apple Silicon), Linux
 
 ## 🛠️ Quick Start
 
