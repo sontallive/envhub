@@ -957,7 +957,7 @@ dependencies = [
 
 [[package]]
 name = "envhub"
-version = "0.1.0"
+version = "0.1.3"
 dependencies = [
  "envhub-core",
  "serde",
@@ -969,7 +969,7 @@ dependencies = [
 
 [[package]]
 name = "envhub-core"
-version = "0.1.0"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "dirs 5.0.1",
@@ -983,7 +983,7 @@ dependencies = [
 
 [[package]]
 name = "envhub-launcher"
-version = "0.1.0"
+version = "0.1.3"
 dependencies = [
  "envhub-core",
  "serde",
@@ -991,7 +991,7 @@ dependencies = [
 
 [[package]]
 name = "envhub-tui"
-version = "0.1.0"
+version = "0.1.3"
 dependencies = [
  "crossterm 0.27.0",
  "envhub-core",
