@@ -5,6 +5,8 @@ use std::process::{Command, ExitCode};
 
 use envhub_core::{AppConfig, CoreError, ErrorCode};
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 fn main() -> ExitCode {
     match run() {
         Ok(code) => code,
@@ -16,8 +18,38 @@ fn main() -> ExitCode {
 }
 
 fn run() -> Result<ExitCode, CoreError> {
+    // Check for version/help flags first
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() > 1 {
+        match args[1].as_str() {
+            "--version" | "-v" => {
+                println!("envhub-launcher {}", VERSION);
+                return Ok(ExitCode::SUCCESS);
+            }
+            "--help" | "-h" => {
+                print_help();
+                return Ok(ExitCode::SUCCESS);
+            }
+            _ => {}
+        }
+    }
+
     let app_name = app_name_from_argv0()
         .ok_or_else(|| CoreError::new(ErrorCode::InvalidState, "Missing argv[0]".to_string()))?;
+
+    // Prevent direct execution of envhub-launcher
+    if app_name == "envhub-launcher" {
+        eprintln!("Error: envhub-launcher should not be run directly.");
+        eprintln!("This binary is meant to be symlinked/copied with your app name.");
+        eprintln!();
+        eprintln!("Usage:");
+        eprintln!("  1. Register an app in envhub TUI");
+        eprintln!("  2. Install the shim for that app");
+        eprintln!("  3. Run your app by its alias name (e.g., 'iclaude', 'inode')");
+        eprintln!();
+        eprintln!("For more information, run: envhub-launcher --help");
+        return Ok(ExitCode::from(1));
+    }
     let state = envhub_core::load_state()?;
 
     let (target_binary, profile_env) = match state.apps.get(&app_name) {
@@ -69,6 +101,32 @@ fn run() -> Result<ExitCode, CoreError> {
             "Unsupported platform".to_string(),
         ))
     }
+}
+
+fn print_help() {
+    println!("envhub-launcher {}", VERSION);
+    println!();
+    println!("ABOUT:");
+    println!("  A lightweight shim that intercepts command calls and injects environment");
+    println!("  variables based on EnvHub's active profile configuration.");
+    println!();
+    println!("USAGE:");
+    println!("  This binary should NOT be run directly. It's designed to be used as a shim:");
+    println!();
+    println!("  1. Register an app in EnvHub TUI (e.g., alias 'iclaude' for '/usr/local/bin/claude')");
+    println!("  2. Install the shim (press 'i' in TUI)");
+    println!("  3. Run your alias: iclaude code");
+    println!();
+    println!("  The launcher will:");
+    println!("    - Read your EnvHub config to find the active profile");
+    println!("    - Inject environment variables from that profile");
+    println!("    - Execute the original binary with the modified environment");
+    println!();
+    println!("OPTIONS:");
+    println!("  -h, --help       Show this help message");
+    println!("  -v, --version    Show version information");
+    println!();
+    println!("For more information: https://github.com/sontallive/envhub");
 }
 
 fn app_name_from_argv0() -> Option<String> {

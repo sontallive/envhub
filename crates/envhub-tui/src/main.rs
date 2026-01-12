@@ -13,8 +13,65 @@ mod ui;
 
 use app::App;
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 fn main() -> Result<(), CoreError> {
+    // Check for version/help flags
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() > 1 {
+        match args[1].as_str() {
+            "--version" | "-v" => {
+                println!("envhub {}", VERSION);
+                return Ok(());
+            }
+            "--help" | "-h" => {
+                print_help();
+                return Ok(());
+            }
+            _ => {
+                eprintln!("Unknown option: {}", args[1]);
+                eprintln!("Run 'envhub --help' for usage information.");
+                return Err(CoreError::new(
+                    envhub_core::ErrorCode::InvalidState,
+                    "Invalid argument".to_string(),
+                ));
+            }
+        }
+    }
+
     run_tui().map_err(|err| CoreError::new(envhub_core::ErrorCode::Io, err.to_string()))
+}
+
+fn print_help() {
+    println!("envhub {}", VERSION);
+    println!();
+    println!("ABOUT:");
+    println!("  A terminal user interface (TUI) for managing environment variables across");
+    println!("  different applications and profiles.");
+    println!();
+    println!("USAGE:");
+    println!("  envhub [OPTIONS]");
+    println!();
+    println!("  If no options are provided, the interactive TUI will launch.");
+    println!();
+    println!("OPTIONS:");
+    println!("  -h, --help       Show this help message");
+    println!("  -v, --version    Show version information");
+    println!();
+    println!("KEYBOARD SHORTCUTS (in TUI):");
+    println!("  q                Quit");
+    println!("  a                Add app (on Apps List) / Add env var (on Env Vars)");
+    println!("  p                Add profile (on App Detail)");
+    println!("  i                Install shim for selected app");
+    println!("  e                Edit selected environment variable");
+    println!("  d                Delete selected environment variable");
+    println!("  r                Reload configuration");
+    println!("  Enter            Enter app detail / Activate profile");
+    println!("  Esc              Go back / Cancel");
+    println!("  Tab              Switch focus between Profiles and Env Vars");
+    println!("  Up/Down          Navigate lists");
+    println!();
+    println!("For more information: https://github.com/sontallive/envhub");
 }
 
 fn run_tui() -> io::Result<()> {
