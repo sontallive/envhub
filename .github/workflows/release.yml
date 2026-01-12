@@ -39,7 +39,7 @@ jobs:
           targets: ${{ matrix.platform.target }}
 
       - name: Build
-        run: cargo build --release --target ${{ matrix.platform.target }}
+        run: cargo build --release --target ${{ matrix.platform.target }} -p envhub-tui -p envhub-launcher
 
       - name: Package
         shell: bash
