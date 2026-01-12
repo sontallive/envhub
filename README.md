@@ -5,6 +5,10 @@
 ![License](https://img.shields.io/github/license/sontallive/envhub)
 ![Build Status](https://github.com/sontallive/envhub/actions/workflows/release.yml/badge.svg)
 
+<p align="center">
+  <img src="assets/screenshot.png" alt="EnvHub TUI Screenshot" width="100%">
+</p>
+
 ## ✨ Features
 
 - 🖥️ **Interactive TUI**: A beautiful terminal user interface built with `ratatui`.

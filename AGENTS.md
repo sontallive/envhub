@@ -17,7 +17,10 @@ The project is a Rust workspace with some web/Tauri components (though the curre
     *   **Key Files**:
         *   `src/state.rs`: Manages the loading, validating, and saving of the user configuration (`config.json`).
         *   `src/lib.rs`: entry of the crate.
-    *   **Data Storage**: User configuration is stored in `config.json` (formerly `state.json`) in the user's config directory (e.g., `~/.config/envhub/config.json`).
+    *   **Data Storage**: User configuration is stored in `config.json` (formerly `state.json`) in the platform-specific config directory:
+        *   **macOS**: `~/Library/Application Support/envhub/config.json`
+        *   **Linux**: `~/.config/envhub/config.json`
+        *   **Windows**: `%APPDATA%\EnvHub\config.json`
 
 *   **`crates/envhub-tui/`**:
     *   **Purpose**: The Terminal User Interface (TUI) implementation using `ratatui`.
