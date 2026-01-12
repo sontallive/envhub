@@ -8,7 +8,6 @@
     import { Separator } from "$lib/components/ui/separator";
     import { Label } from "$lib/components/ui/label";
     import * as Tabs from "$lib/components/ui/tabs";
-    import * as Card from "$lib/components/ui/card";
     import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
     import * as Dialog from "$lib/components/ui/dialog";
     import {
@@ -37,6 +36,9 @@
         profiles: Profile[];
         activeProfile?: string;
     };
+    type AppInstallStatus = {
+        app_installed: Record<string, boolean>;
+    };
 
     // State
     let apps: App[] = $state([]);
@@ -55,6 +57,12 @@
     let showNewProfileDialog = $state(false);
     let newProfileName = $state("");
     let copyFromProfile = $state("");
+    let installStatus = $state<AppInstallStatus>({
+        app_installed: {},
+    });
+    let installingShim = $state(false);
+    let installMessage = $state("");
+    let installError = $state("");
 
     // ... onMount ...
 
@@ -121,6 +129,14 @@
         newAppName = "";
         newAppDesc = "";
         showNewAppDialog = false;
+
+        installStatus = {
+            ...installStatus,
+            app_installed: {
+                ...installStatus.app_installed,
+                [newApp.id]: false,
+            },
+        };
 
         saveToBackend();
     }
@@ -212,6 +228,7 @@
             if (apps.length > 0) {
                 selectedAppId = apps[0].id;
             }
+            await refreshInstallStatus(loadedApps.map((app) => app.id));
         } catch (err) {
             console.error("Failed to load config:", err);
             error = String(err);
@@ -269,9 +286,61 @@
 
     let selectedApp = $derived(apps.find((a) => a.id === selectedAppId));
     let currentProfile = $derived(selectedApp?.profiles[selectedProfileIndex]);
+    let selectedAppInstalled = $derived(
+        selectedApp ? installStatus.app_installed[selectedApp.id] ?? false : false,
+    );
 
     function toggleVisibility(v: any) {
         v.visible = !v.visible;
+    }
+
+    async function refreshInstallStatus(appNames?: string[]) {
+        const names = appNames ?? apps.map((app) => app.id);
+        if (names.length === 0) {
+            installStatus = {
+                app_installed: {},
+            };
+            return;
+        }
+
+        try {
+            const status = await invoke<AppInstallStatus>(
+                "get_app_install_status",
+                {
+                    appNames: names,
+                },
+            );
+            if (appNames) {
+                installStatus = {
+                    app_installed: {
+                        ...installStatus.app_installed,
+                        ...status.app_installed,
+                    },
+                };
+            } else {
+                installStatus = status;
+            }
+        } catch (err) {
+            console.error("Failed to load install status:", err);
+        }
+    }
+
+    async function installSelectedApp() {
+        if (!selectedApp) return;
+
+        installMessage = "";
+        installError = "";
+        installingShim = true;
+
+        try {
+            await invoke("install_app_shim", { appName: selectedApp.id });
+            installMessage = `Installed shim for ${selectedApp.name}`;
+            await refreshInstallStatus([selectedApp.id]);
+        } catch (err) {
+            installError = String(err);
+        } finally {
+            installingShim = false;
+        }
     }
 </script>
 
@@ -388,6 +457,22 @@
                         </p>
                     </div>
                     <div class="flex items-center gap-2">
+                        <Badge
+                            variant={selectedAppInstalled
+                                ? "secondary"
+                                : "outline"}
+                        >
+                            {selectedAppInstalled
+                                ? "Shim installed"
+                                : "Shim not installed"}
+                        </Badge>
+                        <Button
+                            variant="outline"
+                            disabled={selectedAppInstalled || installingShim}
+                            onclick={installSelectedApp}
+                        >
+                            {installingShim ? "Installing..." : "Install Shim"}
+                        </Button>
                         <DropdownMenu.Root>
                             <DropdownMenu.Trigger
                                 class={buttonVariants({
@@ -408,6 +493,16 @@
                         </DropdownMenu.Root>
                     </div>
                 </div>
+                {#if installMessage || installError}
+                    <div class="px-6 py-2 border-b bg-muted/10 flex items-center gap-2">
+                        {#if installMessage}
+                            <Badge variant="secondary">{installMessage}</Badge>
+                        {/if}
+                        {#if installError}
+                            <Badge variant="destructive">{installError}</Badge>
+                        {/if}
+                    </div>
+                {/if}
                 <div class="px-6 pt-4 border-b bg-muted/5">
                     <Tabs.Root value={currentProfile?.name} class="w-full">
                         <Tabs.List
