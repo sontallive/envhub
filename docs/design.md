@@ -107,9 +107,9 @@ graph TD
 
 ## 4. 详细技术实现 (Technical Implementation)
 
-### 4.1 数据结构 (`state.json`)
+### 4.1 数据结构 (`config.json`)
 
-这是系统唯一的“真理来源”，位于 `~/.config/envhub/state.json`。
+这是系统唯一的“真理来源”，位于 `~/.config/envhub/config.json`。
 
 ```json
 {
@@ -119,11 +119,17 @@ graph TD
       "active_profile": "work",
       "profiles": {
         "work": {
-          "ANTHROPIC_API_KEY": "sk-ant-xxx",
-          "ANTHROPIC_BASE_URL": "https://api.corp.com"
+          "env": {
+            "ANTHROPIC_API_KEY": "sk-ant-xxx",
+            "ANTHROPIC_BASE_URL": "https://api.corp.com"
+          },
+          "command_args": ["-c", "foo=bar", "-c", "abc=1"]
         },
         "personal": {
-          "ANTHROPIC_API_KEY": "sk-ant-yyy"
+          "env": {
+            "ANTHROPIC_API_KEY": "sk-ant-yyy"
+          },
+          "command_args": []
         }
       }
     },
@@ -131,7 +137,10 @@ graph TD
       "target_binary": "kubectl",
       "active_profile": "default",
       "profiles": {
-        "default": { "KUBECONFIG": "/home/user/.kube/prod" }
+        "default": {
+          "env": { "KUBECONFIG": "/home/user/.kube/prod" },
+          "command_args": []
+        }
       }
     }
   }
@@ -139,9 +148,9 @@ graph TD
 
 ```
 
-### 4.1.1 `state.json` 格式规范 (Schema Notes)
+### 4.1.1 `config.json` 格式规范 (Schema Notes)
 
-* **文件位置**: `~/.config/envhub/state.json` (Windows: `%APPDATA%\EnvHub\state.json`)
+* **文件位置**: `~/.config/envhub/config.json` (Windows: `%APPDATA%\EnvHub\config.json`)
 * **读写原则**:
   * `envhub-core` 负责创建/读取/写回，`envhub-launcher` 仅只读。
   * 写回时应保留未知字段（未来扩展），避免破坏兼容性。
@@ -152,7 +161,8 @@ graph TD
     * `active_profile` (string): 当前生效的 Profile 名称。
     * `profiles` (object): Profile 名称到环境变量表的映射。
   * Profile 环境变量表:
-    * key 为环境变量名（`A-Z0-9_` 建议），value 为字符串。
+    * `env` (object): 环境变量名到字符串值的映射。
+    * `command_args` (array): 运行目标程序时自动追加的参数列表。
 
 **最小合法示例:**
 
@@ -163,7 +173,7 @@ graph TD
       "target_binary": "myapp-real",
       "active_profile": "default",
       "profiles": {
-        "default": {}
+        "default": { "env": {}, "command_args": [] }
       }
     }
   }

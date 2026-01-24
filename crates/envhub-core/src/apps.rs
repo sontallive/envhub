@@ -134,6 +134,38 @@ pub fn set_profile_env(name: &str, profile: &str, key: &str, value: &str) -> Res
     set_profile_env_in(&path, name, profile, key, value)
 }
 
+pub fn set_command_args(
+    name: &str,
+    profile: &str,
+    args: Vec<String>,
+) -> Result<(), CoreError> {
+    let path = crate::default_state_path()?;
+    set_command_args_in(&path, name, profile, args)
+}
+
+pub fn set_command_args_in(
+    path: &Path,
+    name: &str,
+    profile: &str,
+    args: Vec<String>,
+) -> Result<(), CoreError> {
+    let mut state = load_state_from_path(path)?;
+    let app = state.apps.get_mut(name).ok_or_else(|| {
+        CoreError::new(
+            ErrorCode::AppNotFound,
+            format!("App \"{name}\" is not registered"),
+        )
+    })?;
+    let profile_cfg = app.profiles.get_mut(profile).ok_or_else(|| {
+        CoreError::new(
+            ErrorCode::ProfileNotFound,
+            format!("Profile \"{profile}\" not found for app \"{name}\""),
+        )
+    })?;
+    profile_cfg.command_args = args;
+    save_state_to_path(path, &state)
+}
+
 pub fn set_profile_env_in(
     path: &Path,
     name: &str,
@@ -160,7 +192,7 @@ pub fn set_profile_env_in(
             format!("Profile \"{profile}\" not found for app \"{name}\""),
         )
     })?;
-    profile_env.insert(key.to_string(), value.to_string());
+    profile_env.env.insert(key.to_string(), value.to_string());
     save_state_to_path(path, &state)
 }
 
@@ -203,8 +235,8 @@ pub fn clone_profile_in(
         ));
     }
 
-    let source_env = app.profiles.get(from_profile).unwrap().clone();
-    app.profiles.insert(to_profile.to_string(), source_env);
+    let source_profile = app.profiles.get(from_profile).unwrap().clone();
+    app.profiles.insert(to_profile.to_string(), source_profile);
 
     if app.active_profile.is_none() {
         app.active_profile = Some(to_profile.to_string());
@@ -237,7 +269,7 @@ pub fn remove_profile_env_in(
             format!("Profile \"{profile}\" not found for app \"{name}\""),
         )
     })?;
-    if profile_env.shift_remove(key).is_none() {
+    if profile_env.env.shift_remove(key).is_none() {
         return Err(CoreError::new(
             ErrorCode::InvalidState,
             format!("Environment key \"{key}\" not found in profile \"{profile}\""),
@@ -301,7 +333,7 @@ mod tests {
         assert_eq!(
             app.profiles
                 .get("default")
-                .and_then(|env| env.get("KEY").map(String::as_str)),
+                .and_then(|profile| profile.env.get("KEY").map(String::as_str)),
             Some("VALUE")
         );
 
@@ -311,7 +343,7 @@ mod tests {
         assert!(
             app.profiles
                 .get("default")
-                .and_then(|env| env.get("KEY"))
+                .and_then(|profile| profile.env.get("KEY"))
                 .is_none()
         );
     }

@@ -1,6 +1,6 @@
 use envhub_core::{
     InstallMode, State, get_launcher_path, install_shim, is_shim_installed, load_state,
-    set_active_profile,
+    set_active_profile, set_command_args,
 };
 use std::io;
 
@@ -10,6 +10,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 pub enum Focus {
     Apps,
     Profiles,
+    CommandArgs,
     EnvVars,
 }
 
@@ -25,6 +26,7 @@ pub enum InputMode {
     AddApp,
     AddProfile,
     SetEnv,
+    SetCommandArgs,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -257,23 +259,30 @@ impl App {
             }
             KeyCode::Char('e') => {
                 if self.page == Page::AppDetail {
-                    self.input.mode = InputMode::SetEnv;
-                    self.input.step = InputStep::First;
-                    self.input.buf.clear();
+                    match self.focus {
+                        Focus::EnvVars => {
+                            self.input.mode = InputMode::SetEnv;
+                            self.input.step = InputStep::First;
+                            self.input.buf.clear();
 
-                    // Pre-fill key if editing
-                    if self.focus == Focus::EnvVars {
-                        if let Some((key, value)) = self.current_env_pair() {
-                            self.input.first = key.clone();
-                            self.input.buf = value.clone(); // Pre-fill value? Logic below expects buf to be KEY first.
-                            // Actually SetEnv flow is: Step 1 Enter Key, Step 2 Enter Value.
-                            // If we want to edit, we probably want to pre-fill Key in Step 1.
-                            self.input.buf = key;
-                            self.status = "Edit env: confirm key".to_string();
+                            // Pre-fill key if editing
+                            if let Some((key, _value)) = self.current_env_pair() {
+                                self.input.first = key.clone();
+                                // SetEnv flow is: Step 1 Enter Key, Step 2 Enter Value.
+                                self.input.buf = key;
+                                self.status = "Edit env: confirm key".to_string();
+                            } else {
+                                let profile = self.current_profile_name().unwrap_or_default();
+                                self.status = format!("Set env for profile {profile}: enter key");
+                            }
                         }
-                    } else {
-                        let profile = self.current_profile_name().unwrap_or_default();
-                        self.status = format!("Set env for profile {profile}: enter key");
+                        Focus::CommandArgs => {
+                            self.input.mode = InputMode::SetCommandArgs;
+                            self.input.step = InputStep::First;
+                            self.input.buf = self.current_command_args_string();
+                            self.status = "Set command args: space-separated".to_string();
+                        }
+                        _ => {}
                     }
                 }
             }
@@ -282,7 +291,8 @@ impl App {
             KeyCode::Tab => {
                 if self.page == Page::AppDetail {
                     self.focus = match self.focus {
-                        Focus::Profiles => Focus::EnvVars,
+                        Focus::Profiles => Focus::CommandArgs,
+                        Focus::CommandArgs => Focus::EnvVars,
                         Focus::EnvVars => Focus::Profiles,
                         _ => Focus::Profiles,
                     };
@@ -310,6 +320,11 @@ impl App {
                             self.input.buf = key;
                             self.status = format!("Edit {}: confirm key", val);
                         }
+                    } else if self.focus == Focus::CommandArgs {
+                        self.input.mode = InputMode::SetCommandArgs;
+                        self.input.step = InputStep::First;
+                        self.input.buf = self.current_command_args_string();
+                        self.status = "Set command args: space-separated".to_string();
                     }
                 }
             }
@@ -372,9 +387,11 @@ impl App {
     fn commit_input(&mut self) -> io::Result<()> {
         let value = self.input.buf.trim().to_string();
 
-        // Skip empty check for AddProfile Step 2 (selection-based, not text-based)
+        // Skip empty check for AddProfile Step 2 (selection-based) and CommandArgs (allows clear)
         if value.is_empty()
-            && !(self.input.mode == InputMode::AddProfile && self.input.step == InputStep::Second) {
+            && !(self.input.mode == InputMode::AddProfile && self.input.step == InputStep::Second)
+            && self.input.mode != InputMode::SetCommandArgs
+        {
             self.status = "Input cannot be empty".to_string();
             return Ok(());
         }
@@ -472,6 +489,27 @@ impl App {
                 }
                 self.input.reset();
             }
+            (InputMode::SetCommandArgs, InputStep::First) => {
+                let app = self.current_app_name();
+                let profile = self.current_profile_name();
+                let args = if value.is_empty() {
+                    Vec::new()
+                } else {
+                    value.split_whitespace().map(|s| s.to_string()).collect()
+                };
+                if let (Some(app), Some(profile)) = (app, profile) {
+                    match set_command_args(&app, &profile, args) {
+                        Ok(()) => {
+                            self.status = format!("Command args updated for {app}:{profile}");
+                            if let Ok(state) = load_state() {
+                                self.update_from_state(state);
+                            }
+                        }
+                        Err(err) => self.status = format!("Failed to set args: {err}"),
+                    }
+                }
+                self.input.reset();
+            }
             _ => {
                 self.input.reset();
             }
@@ -498,6 +536,7 @@ impl App {
                         let len = self.current_env_list().len();
                         self.selected_env_var = next_index(self.selected_env_var, len, delta);
                     }
+                    Focus::CommandArgs => {}
                     _ => {}
                 }
             }
@@ -516,7 +555,13 @@ impl App {
             .apps
             .get(&app_name)
             .and_then(|a| a.profiles.get(&profile))
-            .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+            .map(|profile| {
+                profile
+                    .env
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect()
+            })
             .unwrap_or_default()
     }
 
@@ -542,6 +587,21 @@ impl App {
             .get(self.selected_app)
             .and_then(|entry| entry.profiles.get(self.selected_profile))
             .cloned()
+    }
+
+    pub fn current_command_args_string(&self) -> String {
+        let Some(app_name) = self.current_app_name() else {
+            return String::new();
+        };
+        let Some(profile) = self.current_profile_name() else {
+            return String::new();
+        };
+        self.state
+            .apps
+            .get(&app_name)
+            .and_then(|app| app.profiles.get(&profile))
+            .map(|profile| profile.command_args.join(" "))
+            .unwrap_or_default()
     }
 
     pub fn activate_profile(&mut self) -> io::Result<()> {

@@ -73,7 +73,12 @@ fn render_content_for_page(frame: &mut Frame, area: Rect, app: &App) {
                 .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
                 .split(area);
             render_profiles_list(frame, chunks[0], app);
-            render_env_details(frame, chunks[1], app);
+            let right = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Length(5), Constraint::Min(0)])
+                .split(chunks[1]);
+            render_command_args(frame, right[0], app);
+            render_env_details(frame, right[1], app);
         }
     }
 }
@@ -169,7 +174,30 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
                         .fg(THEME.accent)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::raw(" EnvVars"),
+                Span::raw(" Focus"),
+            ]),
+            Focus::CommandArgs => Line::from(vec![
+                Span::styled(
+                    "Esc",
+                    Style::default()
+                        .fg(THEME.accent)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" Back | "),
+                Span::styled(
+                    "E",
+                    Style::default()
+                        .fg(THEME.accent)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" Edit | "),
+                Span::styled(
+                    "Tab",
+                    Style::default()
+                        .fg(THEME.accent)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(" Focus"),
             ]),
             Focus::EnvVars => Line::from(vec![
                 Span::styled(
@@ -206,7 +234,7 @@ fn render_header(frame: &mut Frame, area: Rect, app: &App) {
                         .fg(THEME.accent)
                         .add_modifier(Modifier::BOLD),
                 ),
-                Span::raw(" Profiles"),
+                Span::raw(" Focus"),
             ]),
             _ => Line::default(),
         },
@@ -388,6 +416,33 @@ fn render_env_details(frame: &mut Frame, area: Rect, app: &App) {
     }
 }
 
+fn render_command_args(frame: &mut Frame, area: Rect, app: &App) {
+    let focus = app.focus == Focus::CommandArgs;
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(if focus { THEME.primary } else { THEME.text_dim }))
+        .title(" Command Args ");
+
+    let args = app.current_command_args_string();
+    let content = if args.is_empty() {
+        Line::from(Span::styled(
+            "No command args set",
+            Style::default().fg(THEME.text_dim),
+        ))
+    } else {
+        Line::from(Span::raw(args))
+    };
+
+    frame.render_widget(
+        Paragraph::new(content)
+            .block(block)
+            .wrap(Wrap { trim: true })
+            .alignment(Alignment::Left),
+        area,
+    );
+}
+
 fn get_env_rows(app: &App) -> (Vec<Row<'_>>, Option<String>) {
     let Some(app_entry) = app.entries.get(app.selected_app) else {
         return (vec![], Some("No application selected".to_string()));
@@ -398,15 +453,16 @@ fn get_env_rows(app: &App) -> (Vec<Row<'_>>, Option<String>) {
     let Some(app_cfg) = app.state.apps.get(&app_entry.name) else {
         return (vec![], Some("App configuration not found".to_string()));
     };
-    let Some(env) = app_cfg.profiles.get(profile) else {
+    let Some(profile_cfg) = app_cfg.profiles.get(profile) else {
         return (vec![], Some("Profile configuration not found".to_string()));
     };
 
-    if env.is_empty() {
+    if profile_cfg.env.is_empty() {
         return (vec![], Some("No environment variables set".to_string()));
     }
 
-    let rows = env
+    let rows = profile_cfg
+        .env
         .iter()
         .map(|(k, v)| {
             Row::new(vec![
@@ -446,6 +502,7 @@ fn render_input_modal(frame: &mut Frame, area: Rect, app: &App) {
         InputMode::AddApp => " Add Command Alias (App) ",
         InputMode::AddProfile => " Add Profile ",
         InputMode::SetEnv => " Set Environment Variable ",
+        InputMode::SetCommandArgs => " Set Command Args ",
         InputMode::Normal => "",
     };
 
@@ -524,6 +581,10 @@ fn render_input_modal(frame: &mut Frame, area: Rect, app: &App) {
                 (InputMode::AddProfile, InputStep::First) => ("New profile name:", None),
                 (InputMode::SetEnv, InputStep::First) => ("Variable KEY:", None),
                 (InputMode::SetEnv, InputStep::Second) => ("Variable VALUE:", None),
+                (InputMode::SetCommandArgs, InputStep::First) => (
+                    "Command args (space-separated, empty to clear):",
+                    None,
+                ),
                 _ => ("", None),
             };
 

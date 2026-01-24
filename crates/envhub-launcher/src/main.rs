@@ -53,7 +53,7 @@ fn run() -> Result<ExitCode, CoreError> {
     }
     let state = envhub_core::load_state()?;
 
-    let (target_binary, profile_env) = match state.apps.get(&app_name) {
+    let (target_binary, profile_env, command_args) = match state.apps.get(&app_name) {
         Some(app) => {
             let target = app.target_binary.clone();
             if target.trim().is_empty() {
@@ -62,15 +62,17 @@ fn run() -> Result<ExitCode, CoreError> {
                     format!("App \"{app_name}\" is missing target_binary"),
                 ));
             }
-            (target, select_profile_env(app))
+            let (env, args) = select_profile_config(app);
+            (target, env, args)
         }
-        None => (app_name.clone(), HashMap::new()),
+        None => (app_name.clone(), HashMap::new(), Vec::new()),
     };
 
     let resolved = resolve_target_binary(&target_binary)?;
     let mut env = merge_env(std::env::vars_os().collect(), &profile_env);
 
-    let args: Vec<OsString> = std::env::args_os().skip(1).collect();
+    let mut args: Vec<OsString> = command_args.into_iter().map(OsString::from).collect();
+    args.extend(std::env::args_os().skip(1));
     if cfg!(windows) {
         let status = Command::new(&resolved)
             .args(args)
@@ -139,9 +141,9 @@ fn app_name_from_argv0() -> Option<String> {
     Some(name)
 }
 
-fn select_profile_env(app: &AppConfig) -> HashMap<String, String> {
+fn select_profile_config(app: &AppConfig) -> (HashMap<String, String>, Vec<String>) {
     if app.profiles.is_empty() {
-        return HashMap::new();
+        return (HashMap::new(), Vec::new());
     }
     let profile = app
         .active_profile
@@ -149,8 +151,11 @@ fn select_profile_env(app: &AppConfig) -> HashMap<String, String> {
         .filter(|name| app.profiles.contains_key(*name))
         .or_else(|| app.profiles.keys().next());
     match profile.and_then(|name| app.profiles.get(name)) {
-        Some(env) => env.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
-        None => HashMap::new(),
+        Some(profile) => (
+            profile.env.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+            profile.command_args.clone(),
+        ),
+        None => (HashMap::new(), Vec::new()),
     }
 }
 
@@ -292,10 +297,10 @@ mod tests {
     fn select_profile_env_falls_back_to_first_profile() {
         let mut app = AppConfig::default();
         app.target_binary = "tool".to_string();
-        let mut env = envhub_core::EnvProfile::new();
-        env.insert("KEY".to_string(), "VALUE".to_string());
-        app.profiles.insert("work".to_string(), env);
-        let env = select_profile_env(&app);
+        let mut profile = envhub_core::ProfileConfig::default();
+        profile.env.insert("KEY".to_string(), "VALUE".to_string());
+        app.profiles.insert("work".to_string(), profile);
+        let (env, _args) = select_profile_config(&app);
         assert_eq!(env.get("KEY").map(String::as_str), Some("VALUE"));
     }
 

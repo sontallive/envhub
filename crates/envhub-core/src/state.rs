@@ -7,7 +7,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::{CoreError, ErrorCode};
 
-pub type EnvProfile = IndexMap<String, String>;
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProfileConfig {
+    #[serde(default)]
+    pub env: IndexMap<String, String>,
+    #[serde(default)]
+    pub command_args: Vec<String>,
+    #[serde(flatten)]
+    pub extra: IndexMap<String, serde_json::Value>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct State {
@@ -28,7 +36,7 @@ pub struct AppConfig {
     #[serde(default)]
     pub active_profile: Option<String>,
     #[serde(default)]
-    pub profiles: IndexMap<String, EnvProfile>,
+    pub profiles: IndexMap<String, ProfileConfig>,
     #[serde(flatten)]
     pub extra: IndexMap<String, serde_json::Value>,
 }
@@ -99,7 +107,7 @@ pub fn validate_state(state: &mut State) -> Result<(), CoreError> {
 
         if app.profiles.is_empty() {
             app.profiles
-                .insert("default".to_string(), EnvProfile::new());
+                .insert("default".to_string(), ProfileConfig::default());
         }
 
         let active = app.active_profile.clone();

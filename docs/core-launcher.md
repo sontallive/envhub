@@ -85,7 +85,12 @@
 * Profile 环境覆盖同名变量。
 * 不删除 base 中不存在的变量。
 
-### 2.5 进程执行策略
+### 2.5 命令参数注入
+
+* `profiles.<name>.command_args` 中的参数会在运行时追加到目标程序的参数列表前。
+* 用户在命令行传入的参数仍会透传，并排在 `command_args` 之后。
+
+### 2.6 进程执行策略
 
 * macOS/Linux: `exec` 替换当前进程（PID 不变）。
 * Windows: `Command::new` 启动子进程，透传 stdin/stdout/stderr。
